@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RaktaSewa • Blood Donor Finder</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Intro Screen (click only) -->
+  <div id="intro-screen" class="intro">
+    <video autoplay muted loop playsinline class="intro__video">
+      <source src="intro.mp4" type="video/mp4" />
+    </video>
+    <div class="intro__overlay">
+      <h1 class="intro__title">Welcome to रक्तसेवा (RaktaSewa)</h1>
+      
+      <button id="startBtn" class="btn btn--red intro__btn" type="button">Get Started</button>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div id="appRoot" style="visibility:hidden;">
+    <!-- Minimal Navbar (title only) -->
+    <nav class="nav">
+      <div class="nav__inner container">
+        <div class="brand">
+          <span class="badge">🩸</span>
+          <span class="brand__name">RaktaSewa</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero (no big poster) -->
+    <header id="home" class="hero container">
+      <div class="card hero__card">
+      
+        <h1 class="hero__title">Donate Blood-Save Life</h1>
+        <p class="hero__subtitle">
+          Connect with blood donors in your area. Register as a donor or find donors when you need them most.
+        </p>
+        <div class="hero__cta">
+          <a class="btn btn--red" href="#register">➕ Register as Donor</a>
+          <a class="btn btn--blue" href="#find">🔎 Find Donors</a>
+        </div>
+      </div>
+
+      <!-- small cartoon that glides across -->
+      <div class="runner" aria-hidden="true">
+        <img src="cartoon.png" alt="" class="runner__img" />
+      </div>
+
+      <audio id="bgAudio" autoplay loop muted>
+        <source src="audio.mp3" type="audio/mpeg" />
+      </audio>
+      <button id="muteBtn" class="mute-btn" type="button" aria-label="Toggle sound">🔇</button>
+    </header>
+
+    <main class="container grid-2">
+      <!-- Register -->
+      <section id="register" class="card">
+        <div class="card__title">
+          <span class="title__icon">👤➕</span>
+          <h2>Register as Donor</h2>
+        </div>
+
+        <div class="form grid-2--fit">
+          <div class="field">
+            <label>Full Name</label>
+            <input id="name" placeholder="Enter full name" />
+          </div>
+
+          <div class="field">
+            <label>Blood Group</label>
+            <select id="blood">
+              <option value="">Select Blood Group</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Phone Number</label>
+            <div class="phone-input">
+              <select id="countryCode" class="code-select" aria-label="Country code">
+                <option value="+977" selected>🇳🇵 +977</option>
+                <option value="+91">🇮🇳 +91</option>
+                <option value="+1">🇺🇸 +1</option>
+                <option value="custom">Custom…</option>
+              </select>
+              <input id="customCode" class="code-input" placeholder="+___" title="Custom code" style="display:none" />
+              <input id="phone" placeholder="number (no country code)" />
+            </div>
+            <small class="muted">Pick a code or type your own, then enter the local number.</small>
+          </div>
+
+          <div class="field">
+            <label>District</label>
+            <input id="district" placeholder="Enter district" />
+          </div>
+
+          <div class="field">
+            <label>Municipality</label>
+            <input id="municipality" placeholder="Enter municipality" />
+          </div>
+
+          <div class="field">
+            <label>Ward</label>
+            <input id="ward" placeholder="Enter ward" />
+          </div>
+        </div>
+
+        <button id="addBtn" class="btn btn--red btn--full">❤️ Register as Donor</button>
+      </section>
+
+      <!-- Find -->
+      <section id="find" class="card">
+        <div class="card__title">
+          <span class="title__icon">🔎</span>
+          <h2>Find Donors</h2>
+        </div>
+
+        <div class="form grid-2--fit">
+          <div class="field">
+            <label>Blood Group</label>
+            <select id="s_blood">
+              <option value="">All Blood Groups</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>District</label>
+            <input id="s_district" placeholder="Enter district" />
+          </div>
+          <div class="field">
+            <label>Municipality</label>
+            <input id="s_muni" placeholder="Enter municipality" />
+          </div>
+          <div class="field">
+            <label>Ward</label>
+            <input id="s_ward" placeholder="Enter ward" />
+          </div>
+        </div>
+
+        <button id="searchBtn" class="btn btn--blue btn--full">🔍 Search Donors</button>
+        <button id="resetBtn" class="btn btn--ghost btn--full">🔄 Reset</button>
+      </section>
+
+      <!-- List -->
+      <section class="card list-card">
+        <div class="list__header">
+          <div class="card__title">
+            <span class="title__icon" style="color:#15803d;">👥</span>
+            <h2>Available Donors</h2>
+          </div>
+          <span id="countPill" class="pill">0 donors</span>
+        </div>
+
+        <div id="list" class="list"></div>
+
+        <div id="empty" class="empty">
+          <svg width="44" height="44" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#6b7280"
+              d="M10 18a8 8 0 1 1 5.293-2.707l4.207 4.207-1.414 1.414-4.207-4.207A8 8 0 0 1 10 18zm0-2a6 6 0 1 0 0-12 6 6 0 0 0 0 12z"/>
+          </svg>
+          <p>No donors found matching your criteria.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer id="about" class="footer">
+      <div class="container footer__inner">
+        <div class="footer__brand">
+          <span class="badge">🩸</span>
+          <strong>RaktaSewa</strong>
+        </div>
+        <p>Designed And Developed By Dikxant Bhandari</p>
+        <div class="footer__icons">
+          
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
