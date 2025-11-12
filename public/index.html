@@ -10,7 +10,7 @@
 </head>
 <body>
 
-  <!-- Intro Screen (click only) -->
+  
   <div id="intro-screen" class="intro">
     <video autoplay muted loop playsinline class="intro__video">
       <source src="intro.mp4" type="video/mp4" />
@@ -22,9 +22,9 @@
     </div>
   </div>
 
-  <!-- App -->
+  
   <div id="appRoot" style="visibility:hidden;">
-    <!-- Minimal Navbar (title only) -->
+
     <nav class="nav">
       <div class="nav__inner container">
         <div class="brand">
@@ -34,7 +34,7 @@
       </div>
     </nav>
 
-    <!-- Hero (no big poster) -->
+
     <header id="home" class="hero container">
       <div class="card hero__card">
       
@@ -45,13 +45,16 @@
         <div class="hero__cta">
           <a class="btn btn--red" href="#register">➕ Register as Donor</a>
           <a class="btn btn--blue" href="#find">🔎 Find Donors</a>
+        
+
+
         </div>
       </div>
 
-      <!-- small cartoon that glides across -->
-      <div class="runner" aria-hidden="true">
+      
+      <!-- <div class="runner" aria-hidden="true">
         <img src="cartoon.png" alt="" class="runner__img" />
-      </div>
+      </div> -->
 
       <audio id="bgAudio" autoplay loop muted>
         <source src="audio.mp3" type="audio/mpeg" />
@@ -60,7 +63,7 @@
     </header>
 
     <main class="container grid-2">
-      <!-- Register -->
+      
       <section id="register" class="card">
         <div class="card__title">
           <span class="title__icon">👤➕</span>
@@ -118,7 +121,7 @@
         <button id="addBtn" class="btn btn--red btn--full">❤️ Register as Donor</button>
       </section>
 
-      <!-- Find -->
+      
       <section id="find" class="card">
         <div class="card__title">
           <span class="title__icon">🔎</span>
@@ -154,7 +157,7 @@
         <button id="resetBtn" class="btn btn--ghost btn--full">🔄 Reset</button>
       </section>
 
-      <!-- List -->
+   
       <section class="card list-card">
         <div class="list__header">
           <div class="card__title">
@@ -176,7 +179,7 @@
       </section>
     </main>
 
-    <!-- Footer -->
+    
     <footer id="about" class="footer">
       <div class="container footer__inner">
         <div class="footer__brand">
@@ -191,6 +194,28 @@
     </footer>
   </div>
 
+<!-- Message Modal -->
+<div id="msgModal" class="modal hidden">
+  <div class="modal__box">
+    <h3>Send a private message to donor</h3>
+    <form id="msgForm">
+      <input type="hidden" name="donorId" />
+      <label>Your Name
+        <input name="requesterName" required />
+      </label>
+      <label>Your Phone (+countrycode...)
+        <input name="requesterPhone" required placeholder="+97798..." />
+      </label>
+      <label>Message (optional)
+        <textarea name="message" rows="3" placeholder="Urgent need of O+ in Kathmandu..."></textarea>
+    <div class="modal__actions">
+  <button type="button" class="btn btn--subtle" id="msgCancel">Cancel</button>
+  <button class="btn btn--primary" type="submit">Send</button>
+</div>
+
+    </form>
+  </div>
+</div>
   <script src="app.js" defer></script>
 </body>
 </html>
