@@ -1,210 +1,307 @@
+/* =========================
+   Base config (frontend -> backend)
+   ========================= */
+const API_BASE =
+  (location.hostname === "localhost" && (location.port === "3000" || location.port === ""))
+    ? "http://localhost:5000" // backend port
+    : "";
 
-(function initIntro(){
-  function showApp() {
-    const app = document.getElementById("appRoot");
-    const intro = document.getElementById("intro-screen");
-    if (!app || !intro) return;
-    app.style.visibility = "visible";
-    intro.classList.add("fade-out");
-    setTimeout(() => { intro.style.display = "none"; }, 650);
-  }
-  window.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("startBtn");
-    if (btn) btn.addEventListener("click", showApp);
+/* =========================
+   Small utilities
+   ========================= */
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const escapeHTML = (s = "") =>
+  s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const qs = (obj) => {
+  const sp = new URLSearchParams();
+  Object.entries(obj).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).trim() !== "") sp.append(k, v);
   });
-})();
+  const str = sp.toString();
+  return str ? `?${str}` : "";
+};
+// Fallback phone mask (if API didn't send phone_masked)
+const maskLocal = (p) => {
+  if (!p) return "hidden";
+  const digits = p.replace(/^\+\d{1,3}/, "");
+  if (digits.length < 3) return "hidden";
+  return `98${"*".repeat(digits.length - 3)}${digits.slice(-1)}`;
+};
+// Mobile detector
+const isMobileUA = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
 
+/* =========================
+   Intro / Audio
+   ========================= */
+document.addEventListener("DOMContentLoaded", () => {
+  const intro   = $("#intro-screen");
+  const start   = $("#startBtn");
+  const appRoot = $("#appRoot");
+  const audio   = $("#bgAudio");
+  const muteBtn = $("#muteBtn");
 
-window.addEventListener("DOMContentLoaded", () => {
-  const audio = document.getElementById("bgAudio");
-  const muteBtn = document.getElementById("muteBtn");
-  if (!audio || !muteBtn) return;
+  if (intro) intro.style.display = "flex";
+  if (appRoot) appRoot.style.visibility = "hidden";
 
-  const saved = localStorage.getItem("bg_muted");
-  if (saved !== null) audio.muted = saved === "true";
-
-  const updateIcon = () => {
+  const renderIcon = () => {
+    if (!muteBtn || !audio) return;
     muteBtn.textContent = audio.muted ? "🔇" : "🔊";
-    muteBtn.setAttribute("aria-label", audio.muted ? "Unmute" : "Mute");
   };
-  updateIcon();
 
- 
-  const tryPlay = () => { audio.play().catch(()=>{}); };
-  document.addEventListener("click", tryPlay, { once:true, capture:true });
-  document.addEventListener("touchstart", tryPlay, { once:true, capture:true });
+  if (start && intro) {
+    start.addEventListener("click", async () => {
+      intro.classList.add("fade-out");
+      setTimeout(() => {
+        intro.remove();
+        appRoot.style.visibility = "visible";
+      }, 600);
 
-  muteBtn.addEventListener("click", () => {
-    audio.muted = !audio.muted;
-    localStorage.setItem("bg_muted", String(audio.muted));
-    updateIcon();
-    if (!audio.muted) audio.play().catch(()=>{});
-  });
+      if (audio) {
+        try { audio.muted = true; audio.currentTime = 0; await audio.play(); } catch {}
+      }
+      renderIcon();
+    });
+  }
+
+  if (muteBtn && audio) {
+    renderIcon();
+    muteBtn.addEventListener("click", async () => {
+      audio.muted = !audio.muted;
+      if (!audio.muted) { try { await audio.play(); } catch {} }
+      renderIcon();
+    });
+  }
 });
 
-
-const api = (path, opts = {}) =>
-  fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
-
-// Phone helpers
-function getFullPhone() {
-  const ccSelect = document.getElementById("countryCode");
-  const custom = document.getElementById("customCode");
-  const local = document.getElementById("phone");
-  let code = ccSelect.value === "custom" ? (custom.value || "").trim() : ccSelect.value;
-  let num = (local.value || "").trim();
-  code = code.replace(/\s+/g, "");
-  num = num.replace(/[\s-]/g, "");
-  if (code && !code.startsWith("+")) code = "+" + code;
-  return { full: code + num, code, num };
+/* =========================
+   Donor list (load & render)
+   ========================= */
+async function load(params = {}) {
+  try {
+    const r = await fetch(`${API_BASE}/api/donors` + qs(params));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    renderList(Array.isArray(data) ? data : []);
+  } catch (e) {
+    console.error("Load donors failed:", e);
+    renderList([]);
+  }
 }
 
-// Rendering 
-function renderList(items) {
-  const list = document.getElementById("list");
-  const empty = document.getElementById("empty");
-  const pill = document.getElementById("countPill");
-  pill.textContent = `${items.length} donor${items.length === 1 ? "" : "s"}`;
-  list.innerHTML = "";
-  if (!items.length) { empty.style.display = "flex"; return; }
+function renderList(list) {
+  const wrap  = $("#list");
+  const count = $("#countPill");
+  const empty = $("#empty");
+
+  wrap.innerHTML = "";
+  count.textContent = `${list.length} donor${list.length === 1 ? "" : "s"}`;
+
+  if (!list.length) { empty.style.display = "flex"; return; }
   empty.style.display = "none";
 
-  items.forEach((d) => {
-    const row = document.createElement("div");
-    row.className = "item";
+  list.forEach((d) => {
+    const card = document.createElement("div");
+    card.className = "item";
 
-    const left = document.createElement("div");
-    left.className = "item__left";
+    // Prefer backend phone; if hidden, this will be null and we’ll fall back to modal
+    const realPhone   = (typeof d.phone === "string" && /^\+?\d+/.test(d.phone)) ? d.phone : null;
+    const phoneMasked = d.phone_masked || maskLocal(d.phone);
 
-    const name = document.createElement("div");
-    name.className = "item__name";
-    name.textContent = d.name;
+    const smsBody = encodeURIComponent(
+      `Hello ${d.name || "donor"}, I need ${d.blood_group} blood via RaktaSewa.`
+    );
+    const smsLink = realPhone ? `sms:${realPhone}?body=${smsBody}` : null;
+    const telLink = realPhone ? `tel:${realPhone}` : null;
 
-    const meta = document.createElement("div");
-    meta.className = "item__meta";
-    const place = [d.district, d.municipality, d.ward].filter(Boolean).join(", ");
-    meta.textContent = place || d.district;
+    card.innerHTML = `
+      <div class="item__left">
+        <div class="item__name">${escapeHTML(d.name)}</div>
+        <div class="item__meta">
+          ${escapeHTML(d.municipality || "")}${d.municipality ? ", " : ""}${escapeHTML(d.district)}${d.ward ? ", " + escapeHTML(d.ward) : ""}
+        </div>
+        <div class="tags">
+          <span class="tag">${escapeHTML(d.blood_group)}</span>
+          <span class="tag">${escapeHTML(phoneMasked)}</span>
+        </div>
+      </div>
+      <div class="item__actions">
+        <button class="btn btn--blue act-message">Message</button>
+        <button class="btn btn--red act-call">Call</button>
+        <button class="btn btn--ghost act-del">Delete</button>
+      </div>
+    `;
 
-    const tags = document.createElement("div");
-    tags.className = "tags";
-    const t1 = document.createElement("span"); t1.className = "tag"; t1.textContent = d.blood_group;
-    const t2 = document.createElement("span"); t2.className = "tag"; t2.textContent = d.phone;
-    tags.append(t1, t2);
+    // Message -> SMS app on mobile if number available, else fallback to modal
+    card.querySelector(".act-message").addEventListener("click", () => {
+      if (isMobileUA && smsLink) {
+        location.href = smsLink;
+      } else if (!realPhone) {
+        // privacy mode: number hidden, use your existing private relay modal
+        openMessageModal(d);
+      } else {
+        // desktop: still try opening default handler, or copy to clipboard if blocked
+        try {
+          location.href = smsLink;
+        } catch {
+          navigator.clipboard?.writeText(realPhone);
+          alert(`SMS number copied: ${realPhone}`);
+        }
+      }
+    });
 
-    left.append(name, meta, tags);
+    // Call -> phone dialer on mobile if number available, else fallback to modal
+    card.querySelector(".act-call").addEventListener("click", () => {
+      if (isMobileUA && telLink) {
+        location.href = telLink;
+      } else if (!realPhone) {
+        alert("Phone is hidden for privacy. Use Message to contact privately.");
+        openMessageModal(d);
+      } else {
+        try {
+          location.href = telLink;
+        } catch {
+          navigator.clipboard?.writeText(realPhone);
+          alert(`Phone copied: ${realPhone}`);
+        }
+      }
+    });
 
-    const actions = document.createElement("div");
-    actions.className = "item__actions";
+    // Delete donor (simple)
+    card.querySelector(".act-del").addEventListener("click", async () => {
+      if (!confirm(`Delete donor "${d.name}"?`)) return;
+      try {
+        const r = await fetch(`${API_BASE}/api/donors/${d._id}`, { method: "DELETE" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        load();
+      } catch (err) {
+        alert(err?.message || "Failed to delete");
+      }
+    });
 
-    const call = document.createElement("a");
-    call.href = `tel:${d.phone}`;
-    call.className = "btn btn--red";
-    call.textContent = "Call";
-
-    const sms = document.createElement("a");
-    sms.href = `sms:${d.phone}`;
-    sms.className = "btn btn--blue";
-    sms.textContent = "Message";
-
-   
-    actions.append(call, sms);
-
-    row.append(left, actions);
-    list.append(row);
+    wrap.appendChild(card);
   });
 }
 
-// Data fetchers 
-async function load(params = {}) {
-  const qs = new URLSearchParams(params).toString();
-  const res = await api("/api/donors" + (qs ? `?${qs}` : ""));
-  const data = await res.json();
-  renderList(data);
-}
+/* =========================
+   Register donor
+   ========================= */
+$("#addBtn")?.addEventListener("click", async () => {
+  const name = $("#name").value.trim();
+  const blood_group = $("#blood").value;
 
-function search() {
-  const params = {};
-  const blood = document.getElementById("s_blood").value;
-  const district = document.getElementById("s_district").value.trim();
-  const muni = document.getElementById("s_muni").value.trim();
-  const ward = document.getElementById("s_ward").value.trim();
-  if (blood) params.blood_group = blood;
-  if (district) params.district = district;
-  const q = [muni, ward].filter(Boolean).join(" ");
-  if (q) params.q = q;
-  load(params);
-}
+  let code = $("#countryCode").value;
+  const customCodeEl = $("#customCode");
+  if (code === "custom") code = (customCodeEl.value || "").trim();
+  let phoneLocal = $("#phone").value.trim();
+  if (!code.startsWith("+")) code = `+${code}`;
+  const phone = `${code}${phoneLocal}`;
 
-//  Create donor
-async function add() {
-  const { full, code } = getFullPhone();
+  const district = $("#district").value.trim();
+  const municipality = $("#municipality").value.trim();
+  const ward = $("#ward").value.trim();
 
-  const payload = {
-    name: document.getElementById("name").value.trim(),
-    blood_group: document.getElementById("blood").value,
-    phone: full,
-    district: document.getElementById("district").value.trim(),
-    municipality: document.getElementById("municipality").value.trim(),
-    ward: document.getElementById("ward").value.trim(),
-  };
-
-  if (!payload.name || !payload.blood_group || !payload.phone || !payload.district) {
-    alert("Please fill name, blood group, phone (with code), and district.");
-    return;
+  if (!name || !blood_group || !district || !phoneLocal) {
+    alert("Please fill name, blood group, district and phone."); return;
   }
-  if (!/^\+\d{7,15}$/.test(payload.phone)) {
-    alert("Please enter a valid international phone (e.g., +9779801234567).");
-    return;
-  }
-  if (code === "+977" && !/^\+9779[78]\d{8}$/.test(payload.phone)) {
-    alert("Nepal mobile should look like +97798XXXXXXXX or +97797XXXXXXXX.");
-    return;
+  if (!/^\+\d{7,15}$/.test(phone)) {
+    alert("Phone must include country code, e.g. +9779812345670"); return;
   }
 
-  const res = await api("/api/donors", { method: "POST", body: JSON.stringify(payload) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    alert(err.error || "Failed to register donor");
-    return;
-  }
+  try {
+    const r = await fetch(`${API_BASE}/api/donors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, blood_group, phone, district, municipality, ward }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error || "Failed to register");
 
-  document.getElementById("name").value = "";
-  document.getElementById("blood").value = "";
-  document.getElementById("phone").value = "";
-  document.getElementById("municipality").value = "";
-  document.getElementById("ward").value = "";
-  document.getElementById("countryCode").value = "+977";
-  const custom = document.getElementById("customCode");
-  custom.value = ""; custom.style.display = "none";
+    alert("Registration successful!");
 
-  search();
-}
-//  Events 
-document.getElementById("addBtn").addEventListener("click", add);
-document.getElementById("searchBtn").addEventListener("click", search);
-
-// Reset button
-const resetBtn = document.getElementById("resetBtn");
-if (resetBtn) {
-  resetBtn.addEventListener("click", () => {
-    document.getElementById("s_blood").value = "";
-    document.getElementById("s_district").value = "";
-    document.getElementById("s_muni").value = "";
-    document.getElementById("s_ward").value = "";
+    ["name","blood","phone","district","municipality","ward"].forEach(id => { const el = $("#"+id); if (el) el.value = ""; });
+    $("#countryCode").value = "+977";
+    if (customCodeEl) { customCodeEl.value = ""; customCodeEl.style.display = "none"; }
     load();
-  });
+  } catch (err) {
+    alert(err.message || "Could not register donor");
+  }
+});
+
+// show/hide custom code box
+$("#countryCode")?.addEventListener("change", (e) => {
+  const cc = $("#customCode"); if (!cc) return;
+  cc.style.display = (e.target.value === "custom") ? "block" : "none";
+  if (e.target.value !== "custom") cc.value = "";
+});
+
+/* =========================
+   Search / Reset
+   ========================= */
+$("#searchBtn")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  const params = {
+    blood_group: $("#s_blood").value,
+    district: $("#s_district").value.trim(),
+    municipality: $("#s_muni").value.trim(),
+    ward: $("#s_ward").value.trim(),
+  };
+  if (!params.blood_group || params.blood_group === "All Blood Groups") delete params.blood_group;
+  load(params);
+});
+$("#resetBtn")?.addEventListener("click", () => {
+  ["s_blood","s_district","s_muni","s_ward"].forEach(id => { const el = $("#"+id); if (el) el.value = ""; });
+  load();
+});
+
+/* =========================
+   Message modal (private relay fallback)
+   ========================= */
+const msgModal = $("#msgModal");
+const msgForm  = $("#msgForm");
+$("#msgCancel")?.addEventListener("click", () => msgModal.classList.add("hidden"));
+
+function openMessageModal(donor) {
+  msgForm.reset();
+  msgForm.querySelector("[name=donorId]").value = donor._id;
+  msgModal.classList.remove("hidden");
 }
 
-// Toggle custom code field
-const ccSel = document.getElementById("countryCode");
-if (ccSel) {
-  ccSel.addEventListener("change", (e) => {
-    const show = e.target.value === "custom";
-    const custom = document.getElementById("customCode");
-    custom.style.display = show ? "block" : "none";
-    if (show) custom.focus(); else custom.value = "";
-  });
-}
+msgForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = Object.fromEntries(new FormData(msgForm).entries());
 
+  try {
+    const r = await fetch(`${API_BASE}/api/contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-load();
+    const text = await r.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch {}
+
+    if (!r.ok) {
+      alert(data?.error || text || `HTTP ${r.status}`);
+      return;
+    }
+
+    if (data.relay || data.relayed) {
+      alert("Your request was sent privately. The donor will reply to your phone.");
+    } else {
+      alert("Request saved. (Server not relaying SMS — opening your SMS app if possible.)");
+      if (isMobileUA && (data.smsLink || data.smstoLink)) {
+        location.href = /iphone|ipad|ipod/i.test(navigator.userAgent) ? (data.smstoLink || data.smsLink) : (data.smsLink || data.smstoLink);
+      }
+    }
+    msgModal.classList.add("hidden");
+  } catch (err) {
+    alert(err?.message || "Network error");
+  }
+});
+
+/* =========================
+   First render
+   ========================= */
+document.addEventListener("DOMContentLoaded", () => load());
